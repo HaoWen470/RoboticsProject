@@ -1,0 +1,139 @@
+import numpy as np 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import matplotlib  
+matplotlib.use('Qt5Agg')
+from matplotlib import pyplot as plt
+
+constant =  0.5*np.log(2*np.pi)
+
+class DataLoader_RegressionToy_sinusoidal():
+
+    def __init__(self, batch_size):
+
+        self.xs = np.expand_dims(np.linspace(-8, 8, num=1000, dtype=np.float32), -1)
+
+        self.ys = 5*(np.sin(self.xs)) + np.random.normal(scale=1, size=self.xs.shape)
+
+        # Standardize input features
+        self.input_mean = np.mean(self.xs, 0)
+        self.input_std = np.std(self.xs, 0)
+        self.xs_standardized = (self.xs - self.input_mean)/self.input_std
+
+        # Target mean and std
+        self.target_mean = np.mean(self.ys, 0)[0]
+        self.target_std = np.std(self.ys, 0)[0]
+
+        self.batch_size = batch_size
+
+    def next_batch(self):
+
+        indices = np.random.choice(np.arange(len(self.xs_standardized)), size=self.batch_size)
+        x = self.xs_standardized[indices, :]
+        y = self.ys[indices, :]
+
+        return x, y
+
+    def get_data(self):
+
+        return self.xs_standardized, self.ys
+
+    def get_test_data(self):
+
+        test_xs = np.expand_dims(np.linspace(-16, 16, num=2000, dtype=np.float32), -1)
+
+        test_ys = 5*(np.sin(test_xs)) + np.random.normal(scale=1, size=test_xs.shape)
+
+        test_xs_standardized = (test_xs - self.input_mean)/self.input_std
+
+        return np.array(test_xs_standardized), np.array(test_ys)
+
+class MLPGaussianRegressor(nn.Module):
+	def __init__(self, sizes):
+		'''
+		The first number in sizes is the number of input nodes
+		The last number in sizes is the number of output nodes 
+		'''
+		super(MLPGaussianRegressor, self).__init__()
+		layers = []
+		for i in range(len(sizes)-2):
+			layers.append(nn.Linear(sizes[i], sizes[i+1]))
+			layers.append(nn.ReLU())
+		layers.append(nn.Linear(sizes[-2], sizes[-1]*2))
+		self.net = nn.Sequential(*layers)
+		self.output = sizes[-1]
+
+	def forward(self, x):
+		output = self.net(x)
+		means_ = output[:, :self.output]
+		vars_ = F.softplus(output[:, self.output:]) + 1e-6
+		return means_, vars_
+
+	def nll(self, means_, vars_, target):
+		diff = target - means_
+		nll_loss = 0.5 * torch.log(vars_) + 0.5 * torch.pow(diff, 2) / vars_ + constant
+		return nll_loss.mean()
+
+class DeepEnsembles():
+	def __init__(self, M = 5, sizes = [4, 16, 16, 4]):
+		self.ensemble = [MLPGaussianRegressor(sizes) for _ in range(M)]
+		self.optimizers = [torch.optim.Adam(self.ensemble[i].parameters(), lr = 0.01) for i in range(M)]
+
+	def ensemble_mean_var(self, x):
+		en_mean = 0
+		en_var = 0
+		x = torch.FloatTensor(x)
+		for model in self.ensemble:
+			mean, var = model(x)
+			en_mean += mean
+			en_var += var + mean**2
+		en_mean /= len(self.ensemble)
+		en_var /= len(self.ensemble)
+		en_var -= en_mean**2
+		return en_mean, en_var
+
+	def train(self, data_loader, max_iter = 5000, alpha = 0.5, eps = 1e-2):
+		for it in range(max_iter):
+			all_loss = 0
+			for m in range(len(self.ensemble)):
+				x, y = data_loader.next_batch()
+				x = torch.FloatTensor(x)
+				x.requires_grad = True
+				y = torch.FloatTensor(y)
+				means_, vars_ = self.ensemble[m](x)
+				
+				loss = self.ensemble[m].nll(means_, vars_, y)
+				
+				# adversarial data
+				loss.backward(retain_graph =True)
+				x_adv = x + eps * torch.sign(x.grad)
+				means_adv, vars_adv = self.ensemble[m](x_adv)
+				loss_adv = self.ensemble[m].nll(means_adv, vars_adv, y)
+
+				total_loss = alpha * loss + (1 - alpha) * loss_adv
+				self.optimizers[m].zero_grad()
+				total_loss.backward()
+
+				self.optimizers[m].step()
+
+				all_loss += total_loss.data.item()
+			if it % 50 == 0:
+				print("iter: %d; loss: %2.3f"%(it, all_loss/len(self.ensemble)))
+
+# test the algorithm on a toy dataset (sinusodial)
+if __name__ == "__main__":
+	ens = DeepEnsembles(sizes = [1, 16, 16, 1])
+	loader = DataLoader_RegressionToy_sinusoidal(batch_size = 64)
+	ens.train(loader)
+	x_test, y_test = loader.get_test_data()
+	plt.scatter(x_test.reshape(-1), y_test.reshape(-1))
+	plt.show()
+	mean, var = ens.ensemble_mean_var(x_test)
+	mean = mean.detach().numpy().reshape(-1)
+	var = var.detach().numpy().reshape(-1)
+	x_test = x_test.reshape(-1)
+	plt.plot(x_test, mean)
+	plt.plot(x_test, mean + var)
+	plt.plot(x_test, mean-var)
+	plt.show()
