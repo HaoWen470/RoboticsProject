@@ -121,6 +121,18 @@ class DeepEnsembles():
 			if it % 50 == 0:
 				print("iter: %d; loss: %2.3f"%(it, all_loss/len(self.ensemble)))
 
+	def save(self):
+		file_name = "weights/DeepEnsembles.pt"
+		torch.save({"model"+str(i) : self.ensemble[i].state_dict() for i in range(len(self.ensemble))}, file_name)
+		print("save model to " + file_name)
+
+	def load(self):
+		file_name = "weights/DeepEnsembles.pt"
+		checkpoint = torch.load(file_name)
+		for i in range(len(self.ensemble)):
+			self.ensemble[i].load_state_dict(checkpoint["model"+str(i)])
+		print("load model from " + file_name)
+
 # test the algorithm on a toy dataset (sinusodial)
 if __name__ == "__main__":
 	ens = DeepEnsembles(sizes = [1, 16, 16, 1])
