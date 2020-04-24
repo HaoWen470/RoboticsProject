@@ -65,12 +65,12 @@ class MLPGaussianRegressor(nn.Module):
 			layers.append(nn.ReLU())
 		layers.append(nn.Linear(sizes[-2], sizes[-1]*2))
 		self.net = nn.Sequential(*layers)
-		self.output = sizes[-1]
+		self.out = sizes[-1]
 
 	def forward(self, x):
 		output = self.net(x)
-		means_ = output[:, :self.output]
-		vars_ = F.softplus(output[:, self.output:]) + 1e-6
+		means_ = output[:, :self.out]
+		vars_ = F.softplus(output[:, self.out:]) + 1e-6
 		return means_, vars_
 
 	def nll(self, means_, vars_, target):
@@ -79,23 +79,26 @@ class MLPGaussianRegressor(nn.Module):
 		return nll_loss.mean()
 
 class CNNRegressor(nn.Module):
-	def __init__(self, sizes = [1, 10, 20, 80, 4]):
+	def __init__(self):
 		super(CNNRegressor, self).__init__()
-		self.conv1 = nn.Conv2d(sizes[0], sizes[1], 5)
-		self.pool = nn.MaxPool2d(2,2)
-		self.conv2 = nn.Conv2d(sizes[1], sizes[2], 5)
-		self.lin1 = nn.Linear(sizes[3], sizes[4])
-		self.lin2 = nn.Linear(sizes[4] * sizes[5]*2)
-		self.sizes = sizes
-
+		# input image is 3*64*256
+		self.out = 4
+		self.conv1 = nn.Conv2d(3, 6, 3, padding = 1)
+		self.conv2 = nn.Conv2d(6, 16, 3, padding = 1, stride = 2) 
+		self.conv3 = nn.Conv2d(16, 10, 3, padding = 1, stride = 2) # 10*16*64
+		self.pool = nn.MaxPool2d(2,2) 
+		self.lin1 = nn.Linear(640, 128)
+		self.lin2 = nn.Linear(128, 4*2)
+		
 	def forward(self, x):
-		x = self.pool(F.ReLU(self.conv1(x)))
-		x = self.pool(F.ReLu(self.conv2(x)))
-		x = x.view(-1, self.sizes[3])
+		x = self.pool(F.relu(self.conv1(x))) # 6*32*128
+		x = self.pool(F.relu(self.conv2(x))) # 16*8*32
+		x = F.relu(self.conv3(x)) # 10*4*16
+		x = torch.flatten(x, start_dim = 1)
 		x = F.relu(self.lin1(x))
 		output = self.lin2(x)
-		means_ = output[:, :self.output]
-		vars_ = F.softplus(output[:, self.output:]) + 1e-6
+		means_ = output[:, :self.out]
+		vars_ = F.softplus(output[:, self.out:]) + 1e-6
 		return means_, vars_
 
 	def nll(self, means_, vars_, target):
@@ -105,12 +108,12 @@ class CNNRegressor(nn.Module):
 
 
 class DeepEnsembles():
-	def __init__(self, M = 5, sizes = [5, 16, 16, 4], regressor = "MLP"):
+	def __init__(self, M = 5, sizes = [6, 16, 64, 32, 4], regressor = "MLP"):
 		if regressor == "MLP":
 			self.ensemble = [MLPGaussianRegressor(sizes) for _ in range(M)]
 		else:
-			self.ensemble = [CNNRegressor(sizes) for _ in range(M)]
-		self.optimizers = [torch.optim.Adam(self.ensemble[i].parameters(), lr = 0.01) for i in range(M)]
+			self.ensemble = [CNNRegressor() for _ in range(M)]
+		self.optimizers = [torch.optim.Adam(self.ensemble[i].parameters(), lr = 0.001) for i in range(M)]
 
 	def ensemble_mean_var(self, x):
 		en_mean = 0
@@ -125,11 +128,11 @@ class DeepEnsembles():
 		en_var -= en_mean**2
 		return en_mean, en_var
 
-	def train(self, data_loader, max_iter = 1000, alpha = 0.5, eps = 1e-2):
+	def train(self, data_loader, max_iter = 6000, alpha = 0.5, eps = 5e-3):
 		for it in range(max_iter):
 			all_loss = 0
 			for m in range(len(self.ensemble)):
-				x, y = data_loader.next_batch()
+				x, y, _ = data_loader.next_batch()
 				x = torch.FloatTensor(x)
 				x.requires_grad = True
 				y = torch.FloatTensor(y)

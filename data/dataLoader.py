@@ -5,7 +5,7 @@ import os
 import cv2
 
 NUM_DATAPOINTS_PER_EPOCH = 50
-ROOT_PATH = "train_data/"
+ROOT_PATH = "data/train_data/"
 
 def augmented_state(state):
     """
@@ -43,12 +43,12 @@ def loadData(img_stack = 3, train_type = "both"):
 
     for i in random_filenames:
         step = int((i.split('.')[0]).split('-')[1])
-        img = cv2.imread(ROOT_PATH+"random_img/"+i)
+        img = cv2.imread(ROOT_PATH+"random_img/"+i, 0)
         img = np.array(img)
         random_img.append(img)
     for i in swingup_filenames:
         step = int((i.split('.')[0]).split('-')[1])
-        img = cv2.imread(ROOT_PATH+"swingup_img/"+i)
+        img = cv2.imread(ROOT_PATH+"swingup_img/"+i, 0)
         img = np.array(img)
         swingup_img.append(img)
     if train_type=="both":
@@ -65,8 +65,8 @@ class CartPoleDataset(Dataset):
         self.state_augmented = state_augmented
         self.delta_state = delta_state
         self.need_img = need_img
-        self.img_data = img_data
-        self.img_stack = 3
+        self.img_data = img_data / 255.0
+        self.img_stack = img_stack
         self.traj_num, self.datapoints, _ = self.state_augmented.shape
         self.img_datapoints = self.datapoints + self.img_stack - 1
 
@@ -76,13 +76,27 @@ class CartPoleDataset(Dataset):
     def __getitem__(self, idx):
         i = idx//self.datapoints
         j = idx%self.datapoints
-        state = torch.tensor(self.state_augmented[i, j, ...])
-        delta = torch.tensor(self.delta_state[i, j,...])
+        state = torch.FloatTensor(self.state_augmented[i, j, ...])
+        delta = torch.FloatTensor(self.delta_state[i, j,...])
         if self.need_img:
-            imgs = torch.tensor(self.img_data[i*self.img_datapoints+j : i*self.img_datapoints+j+self.img_stack])
+            imgs = torch.FloatTensor(self.img_data[i*self.img_datapoints+j : i*self.img_datapoints+j+self.img_stack])
             return (state, delta, imgs)
         else:
             return (state, delta)
+
+class CartPoleDataLoader():
+    def __init__(self, need_img = True, img_stack = 3, batch_size = 32):
+        dataset = CartPoleDataset(need_img = True)
+        self.loader = DataLoader(dataset, batch_size, shuffle = True, num_workers=4)
+        self.it = iter(self.loader)
+
+    def next_batch(self):
+        try:
+            batch = next(self.it)
+        except:
+            self.it = iter(self.loader)
+            batch = next(self.it)
+        return batch
 
 # example of using this data loader
 if __name__ == "__main__":

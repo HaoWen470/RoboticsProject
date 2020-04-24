@@ -8,8 +8,8 @@ import cv2
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--epoch', default=10)
-parser.add_argument('--dp', default=50)
+parser.add_argument('--epoch', default=10, type=int)
+parser.add_argument('--dp', default=50, type=int)
 args = parser.parse_args()
 
 NUM_DATAPOINTS_PER_EPOCH = args.dp
@@ -90,6 +90,7 @@ if __name__ == "__main__":
             w = vis_img.shape[1]
             cropped = vis_img[h // 3:h * 2 // 3, ]
             resized = cv2.resize(cropped, (256, 64))
+            resized = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
             cv2.imwrite(root+subpath+filename, resized)
             
     for epoch in range(swingup_epoch):
@@ -121,6 +122,7 @@ if __name__ == "__main__":
             w = vis_img.shape[1]
             cropped = vis_img[h // 3:h * 2 // 3, ]
             resized = cv2.resize(cropped, (256, 64))
+            resized = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
             cv2.imwrite(root + subpath + filename, resized)
 
     np.save(root+'random_state.npy', np.array(random_data))
