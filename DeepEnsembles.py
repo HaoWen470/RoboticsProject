@@ -75,9 +75,37 @@ class MLPGaussianRegressor(nn.Module):
 		nll_loss = 0.5 * torch.log(vars_) + 0.5 * torch.pow(diff, 2) / vars_ + constant
 		return nll_loss.mean()
 
+class CNNRegressor(nn.Module):
+	def __init__(self, sizes = [1, 10, 20, 80, 4]):
+
+		super(CNNRegressor, self).__init__()
+		self.conv1 = nn.Conv2d(sizes[0], sizes[1], 5)
+		self.pool = nn.MaxPool2d(2,2)
+		self.conv2 = nn.Conv2d(sizes[1], sizes[2], 5)
+		self.lin1 = nn.Linear(sizes[3], sizes[4])
+		self.lin2 = nn.Linear(sizes[4] * sizes[5]*2)
+		self.sizes = sizes
+
+	def forward(self, x):
+		x = self.pool(F.ReLU(self.conv1(x)))
+		x = self.pool(F.ReLu(self.conv2(x)))
+		x = x.view(-1, self.sizes[3])
+		x = F.relu(self.lin1(x))
+		output = self.lin2(x)
+		means_ = output[:, :self.output]
+		vars_ = F.softplus(output[:, self.output:]) + 1e-6
+		return means_, vars_
+
+	def nll(self, means_, vars_, target):
+		diff = target - means_
+		nll_loss = 0.5 * torch.log(vars_) + 0.5 * torch.pow(diff, 2) / vars_ + constant
+		return nll_loss.mean()
+
+
 class DeepEnsembles():
 	def __init__(self, M = 5, sizes = [4, 16, 16, 4]):
 		self.ensemble = [MLPGaussianRegressor(sizes) for _ in range(M)]
+		#self.ensemble = [CNNRegressor(sizes=[1, 16, 16, 80, 4]) for _ in range(M)]
 		self.optimizers = [torch.optim.Adam(self.ensemble[i].parameters(), lr = 0.01) for i in range(M)]
 
 	def ensemble_mean_var(self, x):
