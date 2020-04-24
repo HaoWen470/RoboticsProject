@@ -2,9 +2,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import matplotlib  
-matplotlib.use('Qt5Agg')
+from sys import platform
+if platform == "darwin":
+	import matplotlib  
+	matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt
+import os
 
 constant =  0.5*np.log(2*np.pi)
 
@@ -77,7 +80,6 @@ class MLPGaussianRegressor(nn.Module):
 
 class CNNRegressor(nn.Module):
 	def __init__(self, sizes = [1, 10, 20, 80, 4]):
-
 		super(CNNRegressor, self).__init__()
 		self.conv1 = nn.Conv2d(sizes[0], sizes[1], 5)
 		self.pool = nn.MaxPool2d(2,2)
@@ -103,9 +105,11 @@ class CNNRegressor(nn.Module):
 
 
 class DeepEnsembles():
-	def __init__(self, M = 5, sizes = [4, 16, 16, 4]):
-		self.ensemble = [MLPGaussianRegressor(sizes) for _ in range(M)]
-		#self.ensemble = [CNNRegressor(sizes=[1, 16, 16, 80, 4]) for _ in range(M)]
+	def __init__(self, M = 5, sizes = [5, 16, 16, 4], regressor = "MLP"):
+		if regressor == "MLP":
+			self.ensemble = [MLPGaussianRegressor(sizes) for _ in range(M)]
+		else:
+			self.ensemble = [CNNRegressor(sizes) for _ in range(M)]
 		self.optimizers = [torch.optim.Adam(self.ensemble[i].parameters(), lr = 0.01) for i in range(M)]
 
 	def ensemble_mean_var(self, x):
@@ -121,7 +125,7 @@ class DeepEnsembles():
 		en_var -= en_mean**2
 		return en_mean, en_var
 
-	def train(self, data_loader, max_iter = 5000, alpha = 0.5, eps = 1e-2):
+	def train(self, data_loader, max_iter = 1000, alpha = 0.5, eps = 1e-2):
 		for it in range(max_iter):
 			all_loss = 0
 			for m in range(len(self.ensemble)):
@@ -150,22 +154,40 @@ class DeepEnsembles():
 				print("iter: %d; loss: %2.3f"%(it, all_loss/len(self.ensemble)))
 
 	def save(self):
+		if not os.path.exists("weights/"):
+			os.mkdir("weights/")
 		file_name = "weights/DeepEnsembles.pt"
 		torch.save({"model"+str(i) : self.ensemble[i].state_dict() for i in range(len(self.ensemble))}, file_name)
 		print("save model to " + file_name)
 
 	def load(self):
-		file_name = "weights/DeepEnsembles.pt"
-		checkpoint = torch.load(file_name)
-		for i in range(len(self.ensemble)):
-			self.ensemble[i].load_state_dict(checkpoint["model"+str(i)])
-		print("load model from " + file_name)
+		try:
+			file_name = "weights/DeepEnsembles.pt"
+			checkpoint = torch.load(file_name)
+			for i in range(len(self.ensemble)):
+				self.ensemble[i].load_state_dict(checkpoint["model"+str(i)])
+			print("load model from " + file_name)
+		except:
+			print("fail to load model!")
+
+class DeepEnsemblesEstimator():
+	def __init__(self, M = 5, size = [5, 16, 16, 4]):
+		self.model = DeepEnsembles(M, size)
+		self.model.load()
+
+	def predict(self, x):
+		mean, var = self.model.ensemble_mean_var(x)
+		# mean rollout
+		return mean
+		# maybe can do sample rollout?
 
 # test the algorithm on a toy dataset (sinusodial)
 if __name__ == "__main__":
 	ens = DeepEnsembles(sizes = [1, 16, 16, 1])
 	loader = DataLoader_RegressionToy_sinusoidal(batch_size = 64)
+	ens.load()
 	ens.train(loader)
+	ens.save()
 	x_test, y_test = loader.get_test_data()
 	plt.scatter(x_test.reshape(-1), y_test.reshape(-1))
 	plt.show()
