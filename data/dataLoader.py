@@ -33,9 +33,6 @@ def loadData(img_stack = 3, train_type = "both"):
     swingup_delta_state = swingup_state[..., start + 1:, :-1] - swingup_state_data
     swingup_state_augmented = augmented_state(swingup_state[..., start:-1, :])
 
-    # augment state
-    
-
     random_img = []
     swingup_img = []
 
@@ -72,9 +69,6 @@ class CartPoleDataset(Dataset):
         self.img_stack = 3
         self.traj_num, self.datapoints, _ = self.state_augmented.shape
         self.img_datapoints = self.datapoints + self.img_stack - 1
-
-    def augment_state(self, state, action):
-        return 
 
     def __len__(self):
         return self.traj_num * self.datapoints
