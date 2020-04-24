@@ -1,4 +1,4 @@
-This folder include codes to collect and preprocess data from cartpole simulation.
+This folder contains codes to collect and preprocess data from cartpole simulation.
 To collect 100 trajectories from random and swing-up policies respectively, and each trajectory contains 50 time steps, run 
 ```
 python collectData.py --epoch 100 --dp 50
