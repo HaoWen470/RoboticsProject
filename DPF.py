@@ -299,5 +299,3 @@ if __name__ == "__main__":
 	(stateAndAction, delta, imgs) = next(it)
 	xstate = stateAndAction[..., :4]
 	action = stateAndAction[..., -1]
-	import IPython
-	IPython.embed()
