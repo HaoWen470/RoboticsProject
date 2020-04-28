@@ -20,7 +20,7 @@ def augmented_state(state):
                      state[..., 3], # x
                      state[..., 4]], axis = -1)  # action
 
-def loadData(img_stack = 3, train_type = "both"):
+def loadData(img_stack = 3, train_type = "both", augmented=True):
     # change your root path here
     img_data = []
     random_state = np.load(ROOT_PATH+"random_state.npy")
@@ -28,10 +28,14 @@ def loadData(img_stack = 3, train_type = "both"):
     start = img_stack-1
     random_state_data = random_state[..., start:-1, :-1]
     random_delta_state = random_state[...,start+1:, :-1]-random_state_data
-    random_state_augmented = augmented_state(random_state[..., start:-1, :])
     swingup_state_data = swingup_state[..., start:-1, :-1]
     swingup_delta_state = swingup_state[..., start + 1:, :-1] - swingup_state_data
-    swingup_state_augmented = augmented_state(swingup_state[..., start:-1, :])
+    if augmented:
+        random_state_final = augmented_state(random_state[..., start:-1, :])
+        swingup_state_final = augmented_state(swingup_state[..., start:-1, :])
+    else:
+        random_state_final = random_state[..., start:-1, :]
+        swingup_state_final = swingup_state[..., start:-1, :]
 
     random_img = []
     swingup_img = []
@@ -52,16 +56,16 @@ def loadData(img_stack = 3, train_type = "both"):
         img = np.array(img)
         swingup_img.append(img)
     if train_type=="both":
-        return np.concatenate([random_state_augmented,swingup_state_augmented]), \
+        return np.concatenate([random_state_final,swingup_state_final]), \
                np.concatenate([random_delta_state, swingup_delta_state]), np.concatenate([random_img, swingup_img])
     elif train_type=="swingup":
-        return swingup_state_augmented, swingup_delta_state, swingup_img
+        return swingup_state_final, swingup_delta_state, swingup_img
     elif train_type == "random":
-        return random_state_augmented, random_delta_state, random_img
+        return random_state_final, random_delta_state, random_img
 
 class CartPoleDataset(Dataset):
-    def __init__(self,  need_img = False, img_stack = 3):
-        state_augmented, delta_state, img_data = loadData(3)
+    def __init__(self,  need_img = False, img_stack = 3, augmented = True):
+        state_augmented, delta_state, img_data = loadData(3, augmented = augmented)
         self.state_augmented = state_augmented
         self.delta_state = delta_state
         self.need_img = need_img
@@ -85,8 +89,8 @@ class CartPoleDataset(Dataset):
             return (state, delta)
 
 class CartPoleDataLoader():
-    def __init__(self, need_img = True, img_stack = 3, batch_size = 32):
-        dataset = CartPoleDataset(need_img = True)
+    def __init__(self, need_img = True, img_stack = 3, batch_size = 32, augmented = True):
+        dataset = CartPoleDataset(need_img = True, augmented = augmented)
         self.loader = DataLoader(dataset, batch_size, shuffle = True, num_workers=4)
         self.it = iter(self.loader)
 

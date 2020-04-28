@@ -1,5 +1,6 @@
 import numpy as np
 #from sklearn.gaussian_process.kernels import RBF
+from DeepEnsembles import DeepEnsemblesEstimator
 
 # Global variables
 NUM_TRAINING_EPOCHS = 12
@@ -55,7 +56,8 @@ def augmented_state(state, action):
     :return: an augmented state for training GP dynamics
     """
     dtheta, dx, theta, x = state
-    return x, dx, dtheta, np.sin(theta), np.cos(theta), action
+    return dtheta, dx, np.sin(theta), np.cos(theta), x, action
+    #return x, dx, dtheta, np.sin(theta), np.cos(theta), action
 
 
 def make_training_data(state_traj, action_traj, delta_state_traj):
@@ -65,6 +67,45 @@ def make_training_data(state_traj, action_traj, delta_state_traj):
     x = np.array([augmented_state(state, action) for state, action in zip(state_traj, action_traj)])
     y = delta_state_traj
     return x, y
+
+def predict_de(model, initial_state, action_traj):
+    pred_gp_mean = np.zeros((NUM_DATAPOINTS_PER_EPOCH, 4))
+    pred_gp_variance = np.zeros((NUM_DATAPOINTS_PER_EPOCH, 4))
+    rollout_gp = np.zeros((NUM_DATAPOINTS_PER_EPOCH, 4))
+
+    pred_gp_mean_trajs = np.zeros((NUM_TRAJ_SAMPLES, NUM_DATAPOINTS_PER_EPOCH, 4))
+    pred_gp_variance_trajs = np.zeros((NUM_TRAJ_SAMPLES, NUM_DATAPOINTS_PER_EPOCH, 4))
+    rollout_gp_trajs = np.zeros((NUM_TRAJ_SAMPLES, NUM_DATAPOINTS_PER_EPOCH, 4))
+
+    mean_state = init_state
+    sample_state = np.tile(init_state, (NUM_TRAJ_SAMPLES, 1))
+    for t in range(NUM_DATAPOINTS_PER_EPOCH):
+        mean_xhat = np.array(augmented_state(mean_state, action_traj[t]))[None]
+        sample_xhat = np.zeros((NUM_TRAJ_SAMPLES, 6))
+        for j in range(NUM_TRAJ_SAMPLES):
+            sample_xhat[j, :] = np.array(augmented_state(sample_state[j, :], action_traj[t]))
+
+        # mean roll out
+        mean, var = model.predict(mean_xhat)
+        mean = mean.detach().numpy()
+        var = var.detach().numpy()
+        pred_gp_mean[t] = mean
+        pred_gp_variance[t] = var
+        rollout_gp[t] = mean_state + mean
+
+        # sample roll out
+        mean_sample, var_sample = model.predict(sample_xhat)
+        mean_sample = mean_sample.detach().numpy()
+        var_sample = var_sample.detach().numpy()
+        pred_gp_mean_trajs[:, t, :] = mean_sample
+        pred_gp_variance_trajs[:, t, :] = var_sample
+        rollout_gp_trajs[:, t, :] = sample_state + rng.normal(mean_sample, np.sqrt(var_sample))
+
+        mean_state = rollout_gp[t, :]
+        sample_state = rollout_gp_trajs[:, t, :]
+
+    return pred_gp_mean, pred_gp_variance, rollout_gp, pred_gp_mean_trajs, pred_gp_variance_trajs, rollout_gp_trajs
+
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
@@ -85,6 +126,8 @@ if __name__ == '__main__':
     delta_state_traj = state_traj[1:] - state_traj[:-1]
     train_x, train_y = make_training_data(state_traj[:-1], action_traj, delta_state_traj)
 
+    model = DeepEnsemblesEstimator()
+
     for epoch in range(NUM_TRAINING_EPOCHS):
         vis.clear()
 
@@ -100,12 +143,16 @@ if __name__ == '__main__':
         delta_state_traj = state_traj[1:] - state_traj[:-1]
 
         # TODO: change here to run our estimator
-        # (pred_gp_mean,
-        #  pred_gp_variance,
-        #  rollout_gp,
-        #  pred_gp_mean_trajs,
-        #  pred_gp_variance_trajs,
-        #  rollout_gp_trajs) = predict_gp(train_x, train_y, state_traj[0], action_traj)
+        (pred_gp_mean,
+         pred_gp_variance,
+         rollout_gp,
+         pred_gp_mean_trajs,
+         pred_gp_variance_trajs,
+         rollout_gp_trajs) = predict_de(model, state_traj[0], action_traj)
+
+
+
+
 
         for i in range(len(state_traj) - 1):
             vis.set_gt_cartpole_state(state_traj[i][3], state_traj[i][2])

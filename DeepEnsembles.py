@@ -108,7 +108,7 @@ class CNNRegressor(nn.Module):
 
 
 class DeepEnsembles():
-	def __init__(self, M = 5, sizes = [6, 16, 64, 32, 4], regressor = "MLP"):
+	def __init__(self, M = 5, sizes = [6, 16, 32, 64, 32, 4], regressor = "MLP"):
 		if regressor == "MLP":
 			self.ensemble = [MLPGaussianRegressor(sizes) for _ in range(M)]
 		else:
@@ -174,14 +174,15 @@ class DeepEnsembles():
 			print("fail to load model!")
 
 class DeepEnsemblesEstimator():
-	def __init__(self, M = 5, size = [5, 16, 16, 4]):
-		self.model = DeepEnsembles(M, size)
+	def __init__(self, M = 5, size = [6, 16, 64, 32, 4]):
+		self.model = DeepEnsembles()
 		self.model.load()
 
 	def predict(self, x):
-		mean, var = self.model.ensemble_mean_var(x)
+		with torch.no_grad():
+			mean, var = self.model.ensemble_mean_var(x)
 		# mean rollout
-		return mean
+		return mean, var
 		# maybe can do sample rollout?
 
 # test the algorithm on a toy dataset (sinusodial)
