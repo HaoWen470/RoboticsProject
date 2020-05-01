@@ -5,6 +5,8 @@ import torch.nn.functional as F
 from data.dataLoader import CartPoleDataset
 from torch.utils.data import Dataset, DataLoader
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 class DPF():
 	def __init__(self, state_dim, action_dim, observation_dim, particle_num = 16, learn_dynamic = True):
 		'''
@@ -32,7 +34,7 @@ class DPF():
 									 nn.Conv2d(16, 10, 3, padding=1, stride = 2), # 10*16*4
 									 nn.Flatten(), 
 									 nn.Linear(640, 64),
-									 nn.ReLU())
+									 nn.ReLU()).to(device)
 		self.encoder_optimizer = torch.optim.Adam(self.encoder.parameters(), lr = 0.001)
 
 		# observation likelihood estimator that maps states and image encodings to probabilities
@@ -41,7 +43,7 @@ class DPF():
 												nn.Linear(64, 64),
 												nn.ReLU(),
 												nn.Linear(64, 1),
-												nn.Sigmoid())
+												nn.Sigmoid()).to(device)
 		self.obs_like_estimator_optimizer = torch.optim.Adam(self.obs_like_estimator.parameters(), lr = 0.001)
 
 		# particle proposer that maps encodings to particles
@@ -50,7 +52,7 @@ class DPF():
 											   nn.ReLU(),
 											   nn.Linear(256, 128),
 											   nn.ReLU(),
-											   nn.Linear(128, 5))
+											   nn.Linear(128, 5)).to(device)
 		self.particle_proposer_optimizer = torch.optim.Adam(self.particle_proposer.parameters(), lr = 0.001)
 
 		# motion noise generator used for motion sampling 
@@ -58,7 +60,7 @@ class DPF():
 												nn.ReLU(),
 												nn.Linear(32, 32),
 												nn.ReLU(),
-												nn.Linear(32, 1))
+												nn.Linear(32, 1)).to(device)
 		self.mo_noise_generator_optimizer = torch.optim.Adam(self.mo_noise_generator.parameters(), lr = 0.001)
 
 		# transition_model maps augmented state and action to next state
@@ -69,7 +71,7 @@ class DPF():
 												  nn.ReLU(),
 												  nn.Linear(128, 64),
 												  nn.ReLU(),
-												  nn.Linear(64, self.state_dim))
+												  nn.Linear(64, self.state_dim)).to(device)
 			self.dynamic_model_optimizer = torch.optim.Adam(self.dynamic_model.parameters(), lr = 0.001)
 
 	def measurement_update(self, encoding, particles):
@@ -90,8 +92,8 @@ class DPF():
 		return inputs
 
 	def propose_particles(self, encoding, num_particles):
-		duplicated_encoding = encoding[:, None, :].repeat((1, num_particles, 1))
-		proposed_particles = self.particle_proposer(duplicated_encoding)
+		duplicated_encoding = encoding[:, None, :].repeat((1, num_particles, 1)).to(device)
+		proposed_particles = self.particle_proposer(duplicated_encoding).cpu()
 		proposed_particles = torch.cat((proposed_particles[..., :2],
 										torch.atan2(proposed_particles[..., 2:3], proposed_particles[..., 3:4]),
 										proposed_particles[..., 4:]), axis = -1)
@@ -101,7 +103,7 @@ class DPF():
 		action = action[:, None, :]
 		action_input = action.repeat((1, particles.shape[1], 1))
 		random_input = torch.rand(action_input.shape)
-		action_random = torch.cat((action_input, random_input), axis = -1)
+		action_random = torch.cat((action_input, random_input), axis = -1).to(device)
 
 		# estimate action noise
 		delta = self.mo_noise_generator(action_random)
@@ -109,16 +111,11 @@ class DPF():
 		noisy_actions = action + delta
 		inputs = self.transform_particles_as_input(torch.cat((particles, noisy_actions), axis = -1))
 		# estimate delta and apply to current state
-		state_delta = self.dynamic_model(inputs)
+		state_delta = self.dynamic_model(inputs).cpu()
 		if training:
 			return state_delta
 		else:
 			return particles + state_delta.detach()
-
-	def initial_particles(self, img):
-		encoding = self.encoder(img)
-		self.particles = self.propose_particles(encoding, num_particles)
-		self.particle_probs = np.ones(self.particle_num) / self.particle_num
 
 	def permute_batch(self, x, samples):
 		# get shape
@@ -279,17 +276,47 @@ class DPF():
 				total_loss.append(e2e_loss.detach().numpy())
 			print("epoch: %d, loss: %2.4f" % (it, np.mean(total_loss)))
 
+	def initial_particles(self, img):
+		self.imgs = np.tile(img[None, ...], (self.image_stack, 1, 1))
+		encoding = self.encoder(self.imgs)
+		self.particles = self.propose_particles(encoding, num_particles)
+		self.particle_probs = np.ones(self.particle_num) / self.particle_num
+
 	def predict(self, action, img):
-		pass
+		self.imgs[:self.image_stack-1, ...] = self.imgs[1:, ...]
+		self.imgs[self.image_stack-1, ...] = img
+		with torch.no_grad():
+			self.particles, self.praticles_probs = self.loop(self.particles, self.particle_probs, action, self.imgs)
+		return self.particles_to_state(self.particles, self.particle_probs)
 
 	def particles_to_state(self, particles, particle_probs):
 		pass
 
 	def load(self):
-		pass
+		try:
+			if not os.path.exists("weights/"):
+				os.mkdir("weights/")
+			file_name = "weights/DPF.pt"
+			checkpoint = torch.load(file_name)
+			self.encoder.load_state_dict(checkpoint["encoder"])
+			self.obs_like_estimator.load_state_dict(checkpoint["obs_like_estimator"])
+			self.particle_proposer.load_state_dict(checkpoint["particle_proposer"])
+			self.mo_noise_generator.load_state_dict(checkpoint["mo_noise_generator"])
+			self.dynamic_model.load_state_dict(checkpoint["dynamic_model"])
+			print("load model from " + file_name)
+		except:
+			print("fail to load model!")
 
 	def save(self):
-		pass
+		if not os.path.exists("weights/"):
+			os.mkdir("weights/")
+		file_name = "weights/DPF.pt"
+		torch.save({"encoder" : self.encoder.state_dict(),
+					"obs_like_estimator" : self.obs_like_estimator.state_dict(),
+					"particle_proposer" : self.particle_proposer.state_dict(),
+					"mo_noise_generator" : self.mo_noise_generator.state_dict(),
+					"dynamic_model" : self.dynamic_model.state_dict()})
+		print("save model to " + file_name)
 
 if __name__ == "__main__":
 	dpf = DPF(4, 1, 64)
@@ -299,3 +326,6 @@ if __name__ == "__main__":
 	(stateAndAction, delta, imgs) = next(it)
 	xstate = stateAndAction[..., :4]
 	action = stateAndAction[..., -1]
+	dpf.train(loader, 10)
+	import IPython
+	IPython.embed()

@@ -106,7 +106,7 @@ if __name__ == "__main__":
 
         # make random data
         for i in range(len(state_traj)-1):
-            vis.set_gt_cartpole_state(state_traj[i][3], state_traj[i][2])
+            vis.set_gt_cartpole_state(state_traj[i+1][3], state_traj[i+1][2])
 
             # if i == 0:
             #     vis.set_gp_cartpole_state(state_traj[i][3], state_traj[i][2])
