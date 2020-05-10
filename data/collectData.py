@@ -56,7 +56,7 @@ if __name__ == "__main__":
     swingup_data = []
 
     vis = Visualizer2(cartpole_length=1.5, x_lim=(0.0, DELTA_T * NUM_DATAPOINTS_PER_EPOCH))
-    root = "test_data/"
+    root = "train_data/"
     if not os.path.exists(root):
         os.makedirs(root)
 
