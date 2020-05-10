@@ -4,5 +4,7 @@ To collect 100 trajectories from random and swing-up policies respectively, and 
 python collectData.py --epoch 100 --dp 50
 ```
 
+To either safe it as test or training data use the flag `--mode` either with `"train"` or `"test"`
+
 The ```CartPoleDataset``` class in dataLoader.py will help you load and preprocess the data into proper format. You can sepcify whether you need image data or not and the number of image stack.  
 It is recommended to wrap this dataset into a ```DataLoader``` to make you life easier.

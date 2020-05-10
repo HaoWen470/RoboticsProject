@@ -6,6 +6,7 @@ from math import sqrt
 import IPython
 import os
 import argparse
+import numpy as np
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="CNN", type=str)
