@@ -24,17 +24,17 @@ if __name__ == "__main__":
     ens.save()
     os.system('spd-say "Finished learning model" ')
     means_diff = [0,0,0,0]
-    if(mode == "MLP"):
+    if(mode == "CNN"):
         loader = CartPoleDataLoader(False, True, batch_size = 1)
     else:
         loader = CartPoleDataLoader(False, False, batch_size = 1)
     for i in range(10):
-        if(regressor=="CNN"):
+        if(mode == "CNN"):
             state, delta, img = loader.next_batch()
             mean, var = ens.ensemble_mean_var(img)
         else:
             state, delta = loader.next_batch()
-            mean, var = ens.ensemble_mean_var(x)
+            mean, var = ens.ensemble_mean_var(state)
         means_diff[0] += (mean[0][0] - delta[0][0])**2
         means_diff[1] += (mean[0][1] - delta[0][1])**2
         means_diff[2] += (mean[0][2] - delta[0][2])**2

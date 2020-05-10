@@ -116,7 +116,7 @@ def learn_gaussian_process(train_x, train_y, i):
     M_kernel[4][4] = 1/kernel_length_scales[4][i]**2
     M_kernel[5][5] = 1/kernel_length_scales[5][i]**2
     N = train_x.shape[0]
-    sigma_id = np.identity(N)*noise_sigmas[i]
+    sigma_id = np.identity(N)*noise_sigmas[i]**2
     kernel_matrix = compute_squared_exponential_kernel(train_x, train_x, M_kernel, kernel_scale_factors[i]**2)
     kernel_sigma = np.linalg.inv(kernel_matrix.__add__(sigma_id))
     pre_mean = np.matmul(kernel_sigma, train_y)
@@ -338,6 +338,12 @@ if __name__ == '__main__':
     from visualization import Visualizer
     from data.visualization import Visualizer2
     import cv2
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--mode', default="CNN", type=str)
+    args = parser.parse_args()
+    mode = args.mode
 
     vis = Visualizer(cartpole_length=1.5, x_lim=(0.0, DELTA_T * NUM_DATAPOINTS_PER_EPOCH))
     swingup_policy = SwingUpAndBalancePolicy('policy.npz')
@@ -350,7 +356,10 @@ if __name__ == '__main__':
     delta_state_traj = state_traj[1:] - state_traj[:-1]
     train_x, train_y = make_training_data(state_traj[:-1], action_traj, delta_state_traj)
 
-    model = DeepEnsemblesEstimator()
+    if(mode == "CNN"):
+        model = DeepEnsemblesEstimator(regressor="CNN")
+    else:
+        model = DeepEnsemblesEstimator(regressor="MLP")
 
     for epoch in range(NUM_TRAINING_EPOCHS):
         vis.clear()
@@ -367,12 +376,22 @@ if __name__ == '__main__':
         delta_state_traj = state_traj[1:] - state_traj[:-1]
 
         # TODO: change here to run our estimator
-        #(pred_de_mean,
-        # pred_de_variance,
-        # rollout_de,
-        # pred_de_mean_trajs,
-        # pred_de_variance_trajs,
-        # rollout_de_trajs) = predict_de(model, state_traj[0], action_traj)
+        if(mode == "MLP"):
+            (pred_de_mean,
+             pred_de_variance,
+             rollout_de,
+             pred_de_mean_trajs,
+             pred_de_variance_trajs,
+             rollout_de_trajs) = predict_de(model, state_traj[0], action_traj)
+
+        else:
+            (pred_de_mean,
+             pred_de_variance,
+             rollout_de,
+             pred_de_mean_trajs,
+             pred_de_variance_trajs,
+             rollout_de_trajs) = pred_cnn(model, state_traj[0], delta_state_traj) 
+
 
         (pred_gp_mean,
          pred_gp_variance,
@@ -380,13 +399,6 @@ if __name__ == '__main__':
          pred_gp_mean_trajs,
          pred_gp_variance_trajs,
          rollout_gp_trajs) = predict_gp(train_x, train_y, state_traj[0], action_traj)
-
-        (pred_de_mean,
-         pred_de_variance,
-         rollout_de,
-         pred_de_mean_trajs,
-         pred_de_variance_trajs,
-         rollout_de_trajs) = pred_cnn(model, state_traj[0], delta_state_traj) 
 
         de_RMSE_0 = 0
         de_RMSE_1 = 0

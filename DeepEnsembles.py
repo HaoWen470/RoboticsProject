@@ -144,7 +144,7 @@ class DeepEnsembles():
 					_, y, img = data_loader.next_batch()
 					x = torch.FloatTensor(img)
 				else:
-					x, y, 
+					x, y = data_loader.next_batch()
 					x = torch.FloatTensor(x)
 				x.requires_grad = True
 				y = torch.FloatTensor(y)
@@ -192,7 +192,7 @@ class DeepEnsembles():
 
 	def load(self):
 		try:
-			if(self.regressor = "CNN"):
+			if(self.regressor == "CNN"):
 				file_name = "weightsCNN/DeepEnsembles.pt"
 			else:
 				file_name = "weightsMLP/DeepEnsembles.pt"
@@ -205,7 +205,11 @@ class DeepEnsembles():
 
 class DeepEnsemblesEstimator():
 	def __init__(self, M = 5, size = [6, 32, 64, 128, 32, 4], regressor = "CNN"):
-		self.model = DeepEnsembles()
+		self.regressor = regressor
+		if(self.regressor == "CNN"):
+			self.model = DeepEnsembles(regressor = "CNN")
+		else:
+			self.model = DeepEnsembles(regressor = "MLP")
 		self.model.load()
 
 	def predict(self, x):
