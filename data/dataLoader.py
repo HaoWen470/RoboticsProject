@@ -90,12 +90,12 @@ class CartPoleDataset(Dataset):
             return (state, delta)
 
 class CartPoleDataLoader():
-    def __init__(self, training, need_img = True, img_stack = 2, batch_size = 32, augmented = True):
+    def __init__(self, training, CNN, need_img = True, img_stack = 2, batch_size = 32, augmented = True):
         if(training):
             ROOT_PATH = "data/train_data/"
         else:
             ROOT_PATH = "data/test_data/"
-        dataset = CartPoleDataset(need_img = True, augmented = augmented)
+        dataset = CartPoleDataset(need_img = CNN, augmented = augmented)
         self.loader = DataLoader(dataset, batch_size, shuffle = True, num_workers=4)
         self.it = iter(self.loader)
 

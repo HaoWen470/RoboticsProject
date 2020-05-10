@@ -113,7 +113,8 @@ class CNNRegressor(nn.Module):
 
 class DeepEnsembles():
 	def __init__(self, M = 5, sizes = [6, 32, 64, 128, 32, 4], regressor = "CNN"):
-		if regressor == "MLP":
+		self.regressor = regressor
+		if self.regressor == "MLP":
 			self.ensemble = [MLPGaussianRegressor(sizes) for _ in range(M)]
 		else:
 			self.ensemble = [CNNRegressor() for _ in range(M)]
@@ -139,8 +140,12 @@ class DeepEnsembles():
 		for it in range(max_iter):
 			all_loss = 0
 			for m in range(len(self.ensemble)):
-				x, y, img = data_loader.next_batch()
-				x = torch.FloatTensor(img)
+				if(self.regressor == "CNN"): 
+					_, y, img = data_loader.next_batch()
+					x = torch.FloatTensor(img)
+				else:
+					x, y, 
+					x = torch.FloatTensor(x)
 				x.requires_grad = True
 				y = torch.FloatTensor(y)
 				means_, vars_ = self.ensemble[m](x)
@@ -174,15 +179,23 @@ class DeepEnsembles():
 				average_loss = 0
 
 	def save(self):
-		if not os.path.exists("weights/"):
-			os.mkdir("weights/")
-		file_name = "weights/DeepEnsembles.pt"
+		if(self.regressor == "CNN"):
+			if not os.path.exists("weightsCNN/"):
+				os.mkdir("weightsCNN/")
+			file_name = "weightsCNN/DeepEnsembles.pt"
+		else:
+			if not os.path.exists("weightsMLP/"):
+				os.mkdir("weightsMLP/")
+			file_name = "weightsMLP/DeepEnsembles.pt"
 		torch.save({"model"+str(i) : self.ensemble[i].state_dict() for i in range(len(self.ensemble))}, file_name)
 		print("save model to " + file_name)
 
 	def load(self):
 		try:
-			file_name = "weights/DeepEnsembles.pt"
+			if(self.regressor = "CNN"):
+				file_name = "weightsCNN/DeepEnsembles.pt"
+			else:
+				file_name = "weightsMLP/DeepEnsembles.pt"
 			checkpoint = torch.load(file_name)
 			for i in range(len(self.ensemble)):
 				self.ensemble[i].load_state_dict(checkpoint["model"+str(i)])
@@ -191,7 +204,7 @@ class DeepEnsembles():
 			print("fail to load model!")
 
 class DeepEnsemblesEstimator():
-	def __init__(self, M = 5, size = [6, 32, 64, 128, 32, 4]):
+	def __init__(self, M = 5, size = [6, 32, 64, 128, 32, 4], regressor = "CNN"):
 		self.model = DeepEnsembles()
 		self.model.load()
 
@@ -200,7 +213,6 @@ class DeepEnsemblesEstimator():
 			mean, var = self.model.ensemble_mean_var(x)
 		# mean rollout
 		return mean, var
-		# maybe can do sample rollout?
 
 # test the algorithm on a toy dataset (sinusodial)
 if __name__ == "__main__":
