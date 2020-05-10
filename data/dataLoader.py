@@ -64,12 +64,13 @@ def loadData(img_stack = 3, train_type = "both", augmented=True):
         return random_state_final, random_delta_state, random_img
 
 class CartPoleDataset(Dataset):
-    def __init__(self,  need_img = False, img_stack = 3, augmented = True):
-        state_augmented, delta_state, img_data = loadData(3, augmented = augmented)
+    def __init__(self,  need_img = False, img_stack = 2, augmented = True):
+        state_augmented, delta_state, img_data = loadData(img_stack, augmented = augmented)
         self.state_augmented = state_augmented
         self.delta_state = delta_state
         self.need_img = need_img
         self.img_data = img_data / 255.0
+        #self.img_data = normalize(img_data, (0.5), (0.5))
         self.img_stack = img_stack
         self.traj_num, self.datapoints, _ = self.state_augmented.shape
         self.img_datapoints = self.datapoints + self.img_stack - 1
@@ -89,7 +90,11 @@ class CartPoleDataset(Dataset):
             return (state, delta)
 
 class CartPoleDataLoader():
-    def __init__(self, need_img = True, img_stack = 3, batch_size = 32, augmented = True):
+    def __init__(self, training, need_img = True, img_stack = 2, batch_size = 32, augmented = True):
+        if(training):
+            ROOT_PATH = "data/train_data/"
+        else:
+            ROOT_PATH = "data/test_data/"
         dataset = CartPoleDataset(need_img = True, augmented = augmented)
         self.loader = DataLoader(dataset, batch_size, shuffle = True, num_workers=4)
         self.it = iter(self.loader)

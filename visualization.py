@@ -406,9 +406,12 @@ class Visualizer(object):
         self.cartpole_vis_gt = CartpoleVisualizer(
             pole_length=cartpole_length, title='Full-Dynamics Prediction', figsize=(4, 3))
         self.cartpole_vis_gp = CartpoleVisualizer(
-            pole_length=cartpole_length, title='GP-Dynamics Prediction', figsize=(4, 3))
+            pole_length=cartpole_length, title='GaussianProcess Prediction', figsize=(4, 3))
+        
+        self.cartpole_vis_de = CartpoleVisualizer(
+            pole_length=cartpole_length, title='DeepEnsemble Prediction', figsize=(4, 3))
 
-        self.info_panel = InfoPanel(figsize=(4, 2))
+        self.info_panel = InfoPanel(figsize=(4, 3))
 
     def _get_plot_image(self):
         canvas = self.fig.canvas
@@ -434,11 +437,20 @@ class Visualizer(object):
     def set_gp_cartpole_rollout_state(self, xs, thetas):
         self.cartpole_states['gp-rollout'] = (xs, thetas)
 
+    def set_de_cartpole_state(self, x, theta):
+        self.cartpole_states['de'] = (x, theta)
+
+    def set_de_cartpole_rollout_state(self, xs, thetas):
+        self.cartpole_states['de-rollout'] = (xs, thetas)
+
     def set_gt_delta_state_trajectory(self, ts, traj):
         self.delta_state_trajs['gt'] = np.concatenate([ts[:, None], traj], axis=1)
 
     def set_gp_delta_state_trajectory(self, ts, traj, variances):
         self.delta_state_trajs['gp'] = np.concatenate([ts[:, None], traj, variances], axis=1)
+    
+    def set_de_delta_state_trajectory(self, ts, traj, variances):
+        self.delta_state_trajs['de'] = np.concatenate([ts[:, None], traj, variances], axis=1)
 
     def set_control(self, u):
         self.control = u
@@ -462,6 +474,18 @@ class Visualizer(object):
         gp_cartpole = cv2.cvtColor(self.cartpole_vis_gp.draw_cartpole_batch(names, xs, thetas, alphas),
                                    cv2.COLOR_RGB2BGR)
 
+        x, theta = self.cartpole_states['de']
+        xs, thetas = self.cartpole_states['de-rollout']
+        xs = np.append(xs, x)
+        thetas = np.append(thetas, theta)
+
+        names = ['de-%d' % _ for _ in range(len(xs))]
+        alphas = [0.3 for _ in range(len(xs))]
+        alphas[-1] = 1.0
+
+        de_cartpole = cv2.cvtColor(self.cartpole_vis_de.draw_cartpole_batch(names, xs, thetas, alphas),
+                                   cv2.COLOR_RGB2BGR)
+
         ts, ddthetas, ddxs, dthetas, dxs = zip(*self.delta_state_trajs['gt'])
 
         gt_handles = []
@@ -475,16 +499,23 @@ class Visualizer(object):
             gp_handles.append(self.plotters[idx].plot_with_errorbar('gp', ts, data, np.sqrt(vars[idx]) * 3,
                               color='r', capsize=3, capthick=0.5, elinewidth=1, linewidth=1, alpha=0.8))
 
+        ts, ddthetas, ddxs, dthetas, dxs, ddtheta_var, ddx_var, dtheta_var, dx_var = zip(*self.delta_state_trajs['de'])
+        vars = dx_var, ddx_var, dtheta_var, ddtheta_var
+        de_handles = []
+        for idx, data in enumerate((dxs, ddxs, dthetas, ddthetas)):
+            de_handles.append(self.plotters[idx].plot_with_errorbar('de', ts, data, np.sqrt(vars[idx]) * 3,
+                              color='b', capsize=3, capthick=0.5, elinewidth=1, linewidth=1, alpha=0.8))
+
         if redraw:
-            self.legend = self.axs[-1].legend([gt_handles[-1], gp_handles[-1]], ['Full-Dynamics', 'GP-Dynamics'],
-                                             loc='upper center', bbox_to_anchor=(0.5, -0.4), ncol=2, fancybox=False)
+            self.legend = self.axs[-1].legend([gt_handles[-1], gp_handles[-1], de_handles[-1]], ['Full-Dynamics', 'GP-Dynamics', 'DE-Dynamics'],
+                                             loc='upper center', bbox_to_anchor=(0.5, -0.4), ncol=3, fancybox=False)
             self.fig.canvas.draw()
         else:
             self.fig.canvas.blit()
 
         plot_img = cv2.cvtColor(self._get_plot_image(), cv2.COLOR_RGB2BGR)
         text_info = self.info_panel.draw_text('info', 0.0, 1.0, self.info_text, fontsize=12, verticalalignment='top')
-        vis_img = HStack(VStack(gt_cartpole, gp_cartpole, text_info), plot_img)
+        vis_img = HStack(VStack(gt_cartpole, gp_cartpole, de_cartpole, text_info), plot_img)
 
         return vis_img
 

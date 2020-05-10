@@ -3,7 +3,7 @@ import os
 
 from cartpole_sim import CartpoleSim
 from policy import SwingUpAndBalancePolicy, RandomPolicy
-from visualization import Visualizer
+from visualization import Visualizer2
 import cv2
 import argparse
 
@@ -55,8 +55,8 @@ if __name__ == "__main__":
     random_data = []
     swingup_data = []
 
-    vis = Visualizer(cartpole_length=1.5, x_lim=(0.0, DELTA_T * NUM_DATAPOINTS_PER_EPOCH))
-    root = "train_data/"
+    vis = Visualizer2(cartpole_length=1.5, x_lim=(0.0, DELTA_T * NUM_DATAPOINTS_PER_EPOCH))
+    root = "test_data/"
     if not os.path.exists(root):
         os.makedirs(root)
 

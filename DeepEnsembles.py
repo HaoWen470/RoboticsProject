@@ -83,19 +83,22 @@ class CNNRegressor(nn.Module):
 		super(CNNRegressor, self).__init__()
 		# input image is 3*64*256
 		self.out = 4
-		self.conv1 = nn.Conv2d(3, 6, 3, padding = 1)
-		self.conv2 = nn.Conv2d(6, 16, 3, padding = 1, stride = 2) 
+		self.conv1 = nn.Conv2d(2, 6, 3, padding = 1)
+		self.conv2 = nn.Conv2d(6, 16, 3, padding = 1, stride = 2)
 		self.conv3 = nn.Conv2d(16, 10, 3, padding = 1, stride = 2) # 10*16*64
 		self.pool = nn.MaxPool2d(2,2) 
+		self.conv_bn2 = nn.BatchNorm2d(16)
+		self.conv_bn3 = nn.BatchNorm2d(10)
 		self.lin1 = nn.Linear(640, 128)
+		self.lin_bn1 = nn.BatchNorm1d(128)
 		self.lin2 = nn.Linear(128, 4*2)
 		
 	def forward(self, x):
 		x = self.pool(F.relu(self.conv1(x))) # 6*32*128
-		x = self.pool(F.relu(self.conv2(x))) # 16*8*32
-		x = F.relu(self.conv3(x)) # 10*4*16
+		x = self.pool(F.relu(self.conv_bn2(self.conv2(x)))) # 16*8*32
+		x = F.relu(self.conv_bn3(self.conv3(x))) # 10*4*16
 		x = torch.flatten(x, start_dim = 1)
-		x = F.relu(self.lin1(x))
+		x = F.relu(self.lin_bn1(self.lin1(x)))
 		output = self.lin2(x)
 		means_ = output[:, :self.out]
 		vars_ = F.softplus(output[:, self.out:]) + 1e-6
@@ -103,23 +106,25 @@ class CNNRegressor(nn.Module):
 
 	def nll(self, means_, vars_, target):
 		diff = target - means_
+		#nll_loss = diff**2
 		nll_loss = 0.5 * torch.log(vars_) + 0.5 * torch.pow(diff, 2) / vars_ + constant
 		return nll_loss.mean()
 
 
 class DeepEnsembles():
-	def __init__(self, M = 5, sizes = [6, 16, 32, 64, 32, 4], regressor = "MLP"):
+	def __init__(self, M = 5, sizes = [6, 32, 64, 128, 32, 4], regressor = "CNN"):
 		if regressor == "MLP":
 			self.ensemble = [MLPGaussianRegressor(sizes) for _ in range(M)]
 		else:
 			self.ensemble = [CNNRegressor() for _ in range(M)]
-		self.optimizers = [torch.optim.Adam(self.ensemble[i].parameters(), lr = 0.001) for i in range(M)]
+		self.optimizers = [torch.optim.Adam(self.ensemble[i].parameters(), lr = 0.01) for i in range(M)]
 
 	def ensemble_mean_var(self, x):
 		en_mean = 0
 		en_var = 0
 		x = torch.FloatTensor(x)
 		for model in self.ensemble:
+			model.eval()
 			mean, var = model(x)
 			en_mean += mean
 			en_var += var + mean**2
@@ -128,12 +133,14 @@ class DeepEnsembles():
 		en_var -= en_mean**2
 		return en_mean, en_var
 
-	def train(self, data_loader, max_iter = 6000, alpha = 0.5, eps = 5e-3):
+	def train(self, data_loader, max_iter = 1000, alpha = 0.5, eps = 5e-3):
+		prev_loss = 3
+		average_loss = 0
 		for it in range(max_iter):
 			all_loss = 0
 			for m in range(len(self.ensemble)):
-				x, y, _ = data_loader.next_batch()
-				x = torch.FloatTensor(x)
+				x, y, img = data_loader.next_batch()
+				x = torch.FloatTensor(img)
 				x.requires_grad = True
 				y = torch.FloatTensor(y)
 				means_, vars_ = self.ensemble[m](x)
@@ -153,8 +160,18 @@ class DeepEnsembles():
 				self.optimizers[m].step()
 
 				all_loss += total_loss.data.item()
-			if it % 50 == 0:
+			average_loss += all_loss/len(self.ensemble)
+			if it % 2 == 0:
 				print("iter: %d; loss: %2.3f"%(it, all_loss/len(self.ensemble)))
+			if (it % 20 == 0 and it > 0):
+				average_loss/=20
+				print("iter: %d; Average loss: %2.3f"%(it, average_loss))
+				if(average_loss < prev_loss):
+					os.system('spd-say "Iteration ' + str(it) + ' Decreasing" ')
+				else:
+					os.system('spd-say "Iteration ' + str(it) + ' Increasing" ')
+				prev_loss = average_loss
+				average_loss = 0
 
 	def save(self):
 		if not os.path.exists("weights/"):
@@ -174,7 +191,7 @@ class DeepEnsembles():
 			print("fail to load model!")
 
 class DeepEnsemblesEstimator():
-	def __init__(self, M = 5, size = [6, 16, 64, 32, 4]):
+	def __init__(self, M = 5, size = [6, 32, 64, 128, 32, 4]):
 		self.model = DeepEnsembles()
 		self.model.load()
 

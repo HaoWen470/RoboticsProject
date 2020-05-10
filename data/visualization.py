@@ -370,7 +370,7 @@ class InfoPanel(object):
         return self._get_image()
 
 
-class Visualizer(object):
+class Visualizer2(object):
     def __init__(self, cartpole_length=1.0, x_lim=(0.0, 1.0), figsize=(6, 8)):
         fig, axs = plt.subplots(nrows=4, ncols=1, sharex=True, figsize=figsize, tight_layout=True)
 
