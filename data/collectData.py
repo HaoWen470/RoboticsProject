@@ -8,7 +8,7 @@ import cv2
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--epoch', default=10, type=int)
+parser.add_argument('--epoch', default=200, type=int)
 parser.add_argument('--dp', default=50, type=int)
 parser.add_argument('--mode', default="train", type=str)
 args = parser.parse_args()
@@ -62,6 +62,8 @@ if __name__ == "__main__":
         root = "train_data/"
     else:
         root = "test_data/"
+        random_epoch = 10
+        swingup_epoch = 10
     if not os.path.exists(root):
         os.makedirs(root)
 
