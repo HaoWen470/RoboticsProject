@@ -134,7 +134,7 @@ class DeepEnsembles():
 		en_var -= en_mean**2
 		return en_mean, en_var
 
-	def train(self, data_loader, max_iter = 1000, alpha = 0.5, eps = 5e-3):
+	def train(self, data_loader, max_iter = 6000, alpha = 0.5, eps = 5e-3):
 		prev_loss = 3
 		average_loss = 0
 		for it in range(max_iter):
