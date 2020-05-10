@@ -10,6 +10,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--epoch', default=10, type=int)
 parser.add_argument('--dp', default=50, type=int)
+parser.add_argument('--mode', default="train", type=str)
 args = parser.parse_args()
 
 NUM_DATAPOINTS_PER_EPOCH = args.dp
@@ -49,6 +50,7 @@ if __name__ == "__main__":
     # num of train data epoch
     random_epoch = args.epoch
     swingup_epoch = args.epoch
+    mode = args.mode
     swingup_policy = SwingUpAndBalancePolicy('policy.npz')
     random_policy = RandomPolicy(seed=12831)
     sim = CartpoleSim(dt=DELTA_T)
@@ -56,7 +58,10 @@ if __name__ == "__main__":
     swingup_data = []
 
     vis = Visualizer2(cartpole_length=1.5, x_lim=(0.0, DELTA_T * NUM_DATAPOINTS_PER_EPOCH))
-    root = "train_data/"
+    if(mode == "train"):
+        root = "train_data/"
+    else:
+        root = "test_data/"
     if not os.path.exists(root):
         os.makedirs(root)
 
