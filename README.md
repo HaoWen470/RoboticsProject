@@ -49,3 +49,11 @@ Tested on sinusoidal toy dataset.
 Original [implementation](https://github.com/tu-rbo/differentiable-particle-filters) from the authors.
 
 ### step 3: behavior cloning (bonus)
+To train behavior cloning model run 
+```
+python BehaviorClone.py 
+```
+Combine pretrained deep ensemble model and behavior cloning model to do full model prediction and control, run
+```
+python bc_rollout.py --mode "MLP"
+```
