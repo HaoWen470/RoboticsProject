@@ -63,16 +63,26 @@ def loadData(img_stack = 3, train_type = "both", augmented=True):
     elif train_type == "random":
         return random_state_final, random_delta_state, random_img
 
+def wrapAngle(x):
+    return (x+np.pi) % (2*np.pi) - np.pi
+
+
 class CartPoleDataset(Dataset):
-    def __init__(self,  need_img = False, img_stack = 3, augmented = True):
-        state_augmented, delta_state, img_data = loadData(3, augmented = augmented)
+    def __init__(self,  need_img = False, img_stack = 3, augmented = True, seq_num = 1):
+        state_augmented, delta_state, img_data = loadData(img_stack, augmented = augmented)
         self.state_augmented = state_augmented
+        self.state_augmented[..., 2] = wrapAngle(self.state_augmented[..., 2])
         self.delta_state = delta_state
         self.need_img = need_img
-        self.img_data = img_data / 255.0
+
+
+        self.img_data = (255.0 - img_data) / 255.0
         self.img_stack = img_stack
+        self.seq_num = seq_num
         self.traj_num, self.datapoints, _ = self.state_augmented.shape
+        self.datapoints = self.datapoints - self.seq_num + 1
         self.img_datapoints = self.datapoints + self.img_stack - 1
+        
 
     def __len__(self):
         return self.traj_num * self.datapoints
@@ -80,10 +90,19 @@ class CartPoleDataset(Dataset):
     def __getitem__(self, idx):
         i = idx//self.datapoints
         j = idx%self.datapoints
-        state = torch.FloatTensor(self.state_augmented[i, j, ...])
-        delta = torch.FloatTensor(self.delta_state[i, j,...])
-        if self.need_img:
+        if self.seq_num == 1:
+            state = torch.FloatTensor(self.state_augmented[i, j, ...])
+            delta = torch.FloatTensor(self.delta_state[i, j,...])
             imgs = torch.FloatTensor(self.img_data[i*self.img_datapoints+j : i*self.img_datapoints+j+self.img_stack])
+        else:
+            state = torch.FloatTensor(self.state_augmented[i, j:j+self.seq_num, ...])
+            delta = torch.FloatTensor(self.delta_state[i, j:j+self.seq_num, ...])
+            imgs = []
+            for idx in range(j, j+self.seq_num):
+                imgs.append(self.img_data[i*self.img_datapoints+idx : i*self.img_datapoints+idx+self.img_stack])
+            imgs = torch.FloatTensor(imgs)
+
+        if self.need_img:
             return (state, delta, imgs)
         else:
             return (state, delta)
@@ -91,7 +110,7 @@ class CartPoleDataset(Dataset):
 class CartPoleDataLoader():
     def __init__(self, need_img = True, img_stack = 3, batch_size = 32, augmented = True):
         dataset = CartPoleDataset(need_img = True, augmented = augmented)
-        self.loader = DataLoader(dataset, batch_size, shuffle = True, num_workers=4)
+        self.loader = DataLoader(dataset, batch_size, shuffle = True, num_workers=1)
         self.it = iter(self.loader)
 
     def next_batch(self):
@@ -106,7 +125,7 @@ class CartPoleDataLoader():
 if __name__ == "__main__":
     #loader = CartPoleDataset(need_img=True)
     dataset = CartPoleDataset(need_img = True)
-    loader = DataLoader(dataset, batch_size = 32, shuffle = True, num_workers=4)
+    loader = DataLoader(dataset, batch_size = 32, shuffle = True, num_workers=1)
     # during training
     for step, (state, delta, imgs) in enumerate(loader):
         # do something here

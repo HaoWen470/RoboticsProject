@@ -81,5 +81,5 @@ class CartpoleSim:
         x = temp.y[:,-1]
         if noisy:
             x = x + self.rng.normal(0, self.state_std, size=x.shape)
-
+        
         return x

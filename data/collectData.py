@@ -38,10 +38,10 @@ def sim_rollout(sim, policy, n_steps, dt, init_state):
         actions.append(action)
         state = sim.step(state, [action], noisy=True)
 
+    #print(state)
     states.append(state)
     times = np.arange(n_steps + 1) * dt
     return times, np.array(states), np.array(actions)
-
 
 if __name__ == "__main__":
     rng = np.random.RandomState(12345)
@@ -88,9 +88,12 @@ if __name__ == "__main__":
             # do crop and resize
             h = vis_img.shape[0]
             w = vis_img.shape[1]
-            cropped = vis_img[h // 3:h * 2 // 3, ]
-            resized = cv2.resize(cropped, (256, 64))
+            
+
+            cropped = vis_img[h // 3: h * 2 // 3, w//10 : w*9//10]
+            resized = cv2.resize(cropped, (360, 100))
             resized = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+            #resized = cv2.Laplacian(resized, cv2.CV_64F)
             cv2.imwrite(root+subpath+filename, resized)
             
     for epoch in range(swingup_epoch):
@@ -120,10 +123,11 @@ if __name__ == "__main__":
             # do crop and resize
             h = vis_img.shape[0]
             w = vis_img.shape[1]
-            cropped = vis_img[h // 3:h * 2 // 3, ]
-            resized = cv2.resize(cropped, (256, 64))
+            cropped = vis_img[h // 3: h * 2 // 3, w//10 : w*9//10]
+            resized = cv2.resize(cropped, (360, 100))
             resized = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
-            cv2.imwrite(root + subpath + filename, resized)
+            #resized = cv2.Laplacian(resized, cv2.CV_64F)
+            cv2.imwrite(root+subpath+filename, resized)
 
     np.save(root+'random_state.npy', np.array(random_data))
     np.save(root + 'swingup_state.npy', np.array(swingup_data))
