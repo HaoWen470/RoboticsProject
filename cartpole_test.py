@@ -324,6 +324,8 @@ def make_img(this_state, next_state):
     resized = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
     nex = np.array(resized)
 
+    vis2.close()
+
     return this, nex
 
     
@@ -444,26 +446,28 @@ if __name__ == '__main__':
                 
             vis.set_de_delta_state_trajectory(ts[:i+1], pred_de_mean[:i+1], pred_de_variance[:i+1])
 
-            de_RMSE_0 += (rollout_de[i-1][0] - state_traj[i][0])**2
-            de_RMSE_1 += (rollout_de[i-1][1] - state_traj[i][1])**2
-            de_RMSE_2 += (rollout_de[i-1][2] - state_traj[i][2])**2
-            de_RMSE_3 += (rollout_de[i-1][3] - state_traj[i][3])**2
+            if i > 0:
 
-            de_nll_0 += 0.5 * log(pred_de_variance[i-1][0]) + 0.5 * (rollout_de[i-1][0] - state_traj[i][0])**2/ pred_de_variance[i-1][0] + constant
-            de_nll_1 += 0.5 * log(pred_de_variance[i-1][1]) + 0.5 * (rollout_de[i-1][1] - state_traj[i][1])**2/ pred_de_variance[i-1][1] + constant
-            de_nll_2 += 0.5 * log(pred_de_variance[i-1][2]) + 0.5 * (rollout_de[i-1][2] - state_traj[i][2])**2/ pred_de_variance[i-1][2] + constant
-            de_nll_3 += 0.5 * log(pred_de_variance[i-1][3]) + 0.5 * (rollout_de[i-1][3] - state_traj[i][3])**2/ pred_de_variance[i-1][3] + constant
+                de_RMSE_0 += (rollout_de[i-1][0] - state_traj[i][0])**2
+                de_RMSE_1 += (rollout_de[i-1][1] - state_traj[i][1])**2
+                de_RMSE_2 += (rollout_de[i-1][2] - state_traj[i][2])**2
+                de_RMSE_3 += (rollout_de[i-1][3] - state_traj[i][3])**2
+
+                de_nll_0 += 0.5 * log(pred_de_variance[i-1][0]) + 0.5 * (rollout_de[i-1][0] - state_traj[i][0])**2/ pred_de_variance[i-1][0] + constant
+                de_nll_1 += 0.5 * log(pred_de_variance[i-1][1]) + 0.5 * (rollout_de[i-1][1] - state_traj[i][1])**2/ pred_de_variance[i-1][1] + constant
+                de_nll_2 += 0.5 * log(pred_de_variance[i-1][2]) + 0.5 * (rollout_de[i-1][2] - state_traj[i][2])**2/ pred_de_variance[i-1][2] + constant
+                de_nll_3 += 0.5 * log(pred_de_variance[i-1][3]) + 0.5 * (rollout_de[i-1][3] - state_traj[i][3])**2/ pred_de_variance[i-1][3] + constant
 
 
-            gp_RMSE_0 += (rollout_gp[i-1][0] - state_traj[i][0])**2
-            gp_RMSE_1 += (rollout_gp[i-1][1] - state_traj[i][1])**2
-            gp_RMSE_2 += (rollout_gp[i-1][2] - state_traj[i][2])**2
-            gp_RMSE_3 += (rollout_gp[i-1][3] - state_traj[i][3])**2
+                gp_RMSE_0 += (rollout_gp[i-1][0] - state_traj[i][0])**2
+                gp_RMSE_1 += (rollout_gp[i-1][1] - state_traj[i][1])**2
+                gp_RMSE_2 += (rollout_gp[i-1][2] - state_traj[i][2])**2
+                gp_RMSE_3 += (rollout_gp[i-1][3] - state_traj[i][3])**2
 
-            gp_nll_0 += 0.5 * log(pred_gp_variance[i-1][0]) + 0.5 * (rollout_gp[i-1][0] - state_traj[i][0])**2/ pred_gp_variance[i-1][0] + constant
-            gp_nll_1 += 0.5 * log(pred_gp_variance[i-1][1]) + 0.5 * (rollout_gp[i-1][1] - state_traj[i][1])**2/ pred_gp_variance[i-1][1] + constant
-            gp_nll_2 += 0.5 * log(pred_gp_variance[i-1][2]) + 0.5 * (rollout_gp[i-1][2] - state_traj[i][2])**2/ pred_gp_variance[i-1][2] + constant
-            gp_nll_3 += 0.5 * log(pred_gp_variance[i-1][3]) + 0.5 * (rollout_gp[i-1][3] - state_traj[i][3])**2/ pred_gp_variance[i-1][3] + constant
+                gp_nll_0 += 0.5 * log(pred_gp_variance[i-1][0]) + 0.5 * (rollout_gp[i-1][0] - state_traj[i][0])**2/ pred_gp_variance[i-1][0] + constant
+                gp_nll_1 += 0.5 * log(pred_gp_variance[i-1][1]) + 0.5 * (rollout_gp[i-1][1] - state_traj[i][1])**2/ pred_gp_variance[i-1][1] + constant
+                gp_nll_2 += 0.5 * log(pred_gp_variance[i-1][2]) + 0.5 * (rollout_gp[i-1][2] - state_traj[i][2])**2/ pred_gp_variance[i-1][2] + constant
+                gp_nll_3 += 0.5 * log(pred_gp_variance[i-1][3]) + 0.5 * (rollout_gp[i-1][3] - state_traj[i][3])**2/ pred_gp_variance[i-1][3] + constant
 
             if policy == swingup_policy:
                 policy_type = 'swing up'
@@ -497,6 +501,7 @@ if __name__ == '__main__':
         print(str(de_nll_0) + ", " + str(de_nll_1) + ", " + str(de_nll_2) + ", " + str(de_nll_3))
 
         print('GaussianProcesses')
+        print(gp_RMSE_0/50)
         gp_RMSE_0 = sqrt(gp_RMSE_0/(len(state_traj) - 1))
         gp_RMSE_1 = sqrt(gp_RMSE_1/(len(state_traj) - 1))
         gp_RMSE_2 = sqrt(gp_RMSE_2/(len(state_traj) - 1))
